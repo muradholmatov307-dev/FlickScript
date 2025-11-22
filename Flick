@@ -1,0 +1,1922 @@
+--[[
+	GostHub Script - Aimbot, ESP, Hitsound, Night Mode, Hitbox Extender with Anti-Cheat Bypass
+]]
+
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+local Window = Library:CreateWindow({
+	Title = "GostHub",
+	Footer = "version: v2.0",
+	Icon = 116720279818135,
+	NotifySide = "Right",
+	ShowCustomCursor = false,
+})
+
+local Tabs = {
+	Combat = Window:AddTab("Combat", "swords"),
+	Visuals = Window:AddTab("Visuals", "eye"),
+	World = Window:AddTab("World", "globe"),
+	HitBox = Window:AddTab("HitBox", "target"),
+	Settings = Window:AddTab("Settings", "settings")
+}
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local LocalPlayer = Players.LocalPlayer
+
+-- Настройки ESP
+local ESP_SETTINGS = {
+    Enabled = false,
+    TeamCheck = false,
+    ShowName = true,
+    ShowDistance = true,
+    ShowVisibility = true,
+    ShowBox = true,
+    ShowTracer = true,
+    MaxDistance = 500,
+    VisibleColor = Color3.new(0, 1, 0),
+    NotVisibleColor = Color3.new(1, 0, 0),
+    TeamColor = Color3.new(0, 0.47, 1),
+    BoxColor = Color3.new(1, 1, 1),
+    TracerColor = Color3.new(1, 1, 1),
+    TracerOrigin = "Bottom"
+}
+
+-- Настройки Aimbot
+local Aimbot = {
+    Enabled = false,
+    FOV = 50,
+    Smoothness = 0.1,
+    TeamCheck = true,
+    VisibleCheck = true,
+    UseFOVCircle = true,
+    FOVType = "Circle", -- Circle, Polygon
+    FOVSides = 6, -- Количество сторон для многоугольника
+    FOVColor = Color3.fromRGB(255, 255, 255),
+    AimPart = "Head",
+    TriggerKey = Enum.KeyCode.Q,
+    UseTrigger = false
+}
+
+-- Настройки Hitsound
+local Hitsound = {
+    Enabled = false,
+    SoundType = "Beep",
+    CustomSoundId = "",
+    Volume = 0.5,
+    LastPlayTime = 0,
+    Cooldown = 0.1
+}
+
+-- Настройки Night Mode
+local NightMode = {
+    Enabled = false,
+    Brightness = 0.1,
+    Ambient = Color3.new(0.3, 0.3, 0.4),
+    OutdoorAmbient = Color3.new(0.3, 0.3, 0.4),
+    ColorShift_Top = Color3.new(0.2, 0.2, 0.3),
+    ColorShift_Bottom = Color3.new(0.1, 0.1, 0.2),
+    FogColor = Color3.new(0.1, 0.1, 0.2),
+    FogStart = 0,
+    FogEnd = 1000,
+    FogEnabled = true,
+    OriginalSettings = {}
+}
+
+-- Настройки Hitbox Extender с Anti-Cheat Bypass
+local HitboxExtender = {
+    Enabled = false,
+    Size = Vector3.new(5, 5, 5), -- Размер хитбокса
+    Transparency = 0.7, -- Прозрачность
+    Color = Color3.new(1, 0, 0), -- Цвет
+    UseTeamColor = true, -- Использовать цвет команды
+    TeamColor = Color3.new(0, 0, 1), -- Цвет союзников
+    ShowOnlyEnemies = true, -- Показывать только врагов
+    UseAntiCheatBypass = true, -- Использовать обход античита
+    BypassMethod = "Hybrid", -- Метод обхода: Network, Silent, Hybrid, Collision
+    Hitboxes = {}, -- Таблица хитбоксов
+    OriginalSizes = {} -- Таблица оригинальных размеров
+}
+
+-- Сохранение оригинальных настроек освещения
+local function SaveOriginalLightingSettings()
+    if not next(NightMode.OriginalSettings) then
+        NightMode.OriginalSettings = {
+            Brightness = Lighting.Brightness,
+            Ambient = Lighting.Ambient,
+            OutdoorAmbient = Lighting.OutdoorAmbient,
+            ColorShift_Top = Lighting.ColorShift_Top,
+            ColorShift_Bottom = Lighting.ColorShift_Bottom,
+            FogColor = Lighting.FogColor,
+            FogStart = Lighting.FogStart,
+            FogEnd = Lighting.FogEnd,
+            FogEnabled = Lighting.FogEnd < 100000,
+            GlobalShadows = Lighting.GlobalShadows
+        }
+    end
+end
+
+-- Применение Night Mode
+local function ApplyNightMode()
+    if not NightMode.Enabled then return end
+    
+    SaveOriginalLightingSettings()
+    
+    Lighting.Brightness = NightMode.Brightness
+    Lighting.Ambient = NightMode.Ambient
+    Lighting.OutdoorAmbient = NightMode.OutdoorAmbient
+    Lighting.ColorShift_Top = NightMode.ColorShift_Top
+    Lighting.ColorShift_Bottom = NightMode.ColorShift_Bottom
+    
+    if NightMode.FogEnabled then
+        Lighting.FogColor = NightMode.FogColor
+        Lighting.FogStart = NightMode.FogStart
+        Lighting.FogEnd = NightMode.FogEnd
+    else
+        Lighting.FogEnd = 1000000 -- Отключаем туман
+    end
+    
+    Lighting.GlobalShadows = true
+end
+
+-- Восстановление оригинальных настроек
+local function RestoreOriginalLighting()
+    if not next(NightMode.OriginalSettings) then return end
+    
+    Lighting.Brightness = NightMode.OriginalSettings.Brightness
+    Lighting.Ambient = NightMode.OriginalSettings.Ambient
+    Lighting.OutdoorAmbient = NightMode.OriginalSettings.OutdoorAmbient
+    Lighting.ColorShift_Top = NightMode.OriginalSettings.ColorShift_Top
+    Lighting.ColorShift_Bottom = NightMode.OriginalSettings.ColorShift_Bottom
+    Lighting.FogColor = NightMode.OriginalSettings.FogColor
+    Lighting.FogStart = NightMode.OriginalSettings.FogStart
+    Lighting.FogEnd = NightMode.OriginalSettings.FogEnd
+    Lighting.GlobalShadows = NightMode.OriginalSettings.GlobalShadows
+end
+
+-- Переключение Night Mode
+local function ToggleNightMode()
+    NightMode.Enabled = not NightMode.Enabled
+    
+    if NightMode.Enabled then
+        ApplyNightMode()
+        Library:Notify("Night Mode: ON", 3)
+    else
+        RestoreOriginalLighting()
+        Library:Notify("Night Mode: OFF", 3)
+    end
+end
+
+-- Anti-Cheat Bypass Methods
+
+-- Метод 1: Сетевой обход (меняем размеры через сеть)
+local function NetworkBypass(player)
+    if not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    local head = player.Character:FindFirstChild("Head")
+    
+    if humanoidRootPart then
+        -- Сохраняем оригинальный размер
+        if not HitboxExtender.OriginalSizes[player] then
+            HitboxExtender.OriginalSizes[player] = {
+                HumanoidRootPart = humanoidRootPart.Size,
+                Head = head and head.Size or nil
+            }
+        end
+        
+        -- Меняем размер через сетевые свойства
+        humanoidRootPart.Size = HitboxExtender.Size
+        
+        if head then
+            head.Size = HitboxExtender.Size
+        end
+    end
+end
+
+-- Метод 2: Тихий обход (используем невидимые части)
+local function SilentBypass(player)
+    if not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    -- Создаем невидимую часть для хитбокса
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "SilentHitbox"
+    hitbox.Size = HitboxExtender.Size
+    hitbox.Transparency = 1 -- Полностью невидимый
+    hitbox.CanCollide = false
+    hitbox.Anchored = false
+    hitbox.Material = Enum.Material.ForceField
+    
+    -- Делаем часть невидимой для камеры
+    local surfaceGui = Instance.new("SurfaceGui")
+    surfaceGui.Enabled = false
+    surfaceGui.Parent = hitbox
+    
+    -- Прикрепляем к персонажу
+    local weld = Instance.new("Weld")
+    weld.Part0 = humanoidRootPart
+    weld.Part1 = hitbox
+    weld.C0 = CFrame.new()
+    
+    hitbox.Parent = player.Character
+    weld.Parent = hitbox
+    
+    HitboxExtender.Hitboxes[player] = {
+        Part = hitbox,
+        Weld = weld,
+        Player = player,
+        Type = "Silent"
+    }
+end
+
+-- Метод 3: Гибридный обход (комбинация методов)
+local function HybridBypass(player)
+    if not player.Character then return end
+    
+    -- Используем сетевой метод для основных частей
+    NetworkBypass(player)
+    
+    -- Добавляем невидимые части для дополнительного покрытия
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "HybridHitbox"
+    hitbox.Size = HitboxExtender.Size * 0.8
+    hitbox.Transparency = 1
+    hitbox.CanCollide = false
+    hitbox.Anchored = false
+    
+    local weld = Instance.new("Weld")
+    weld.Part0 = humanoidRootPart
+    weld.Part1 = hitbox
+    weld.C0 = CFrame.new(0, 1, 0) -- Смещаем немного выше
+    
+    hitbox.Parent = player.Character
+    weld.Parent = hitbox
+    
+    HitboxExtender.Hitboxes[player] = {
+        Part = hitbox,
+        Weld = weld,
+        Player = player,
+        Type = "Hybrid"
+    }
+end
+
+-- Метод 4: Обход через коллизии
+local function CollisionBypass(player)
+    if not player.Character then return end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    -- Создаем часть с измененными коллизиями
+    local hitbox = Instance.new("Part")
+    hitbox.Name = "CollisionHitbox"
+    hitbox.Size = HitboxExtender.Size
+    hitbox.Transparency = HitboxExtender.Transparency
+    hitbox.CanCollide = false
+    hitbox.Anchored = false
+    hitbox.Material = Enum.Material.Neon
+    
+    -- Настраиваем цвет
+    if HitboxExtender.UseTeamColor and player.Team == LocalPlayer.Team then
+        hitbox.BrickColor = BrickColor.new(HitboxExtender.TeamColor)
+    else
+        hitbox.BrickColor = BrickColor.new(HitboxExtender.Color)
+    end
+    
+    -- Специальные настройки для обхода античита
+    hitbox.Massless = true
+    hitbox.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0)
+    
+    local weld = Instance.new("Weld")
+    weld.Part0 = humanoidRootPart
+    weld.Part1 = hitbox
+    weld.C0 = CFrame.new()
+    
+    hitbox.Parent = player.Character
+    weld.Parent = hitbox
+    
+    HitboxExtender.Hitboxes[player] = {
+        Part = hitbox,
+        Weld = weld,
+        Player = player,
+        Type = "Collision"
+    }
+end
+
+-- Hitbox Extender Functions с Anti-Cheat Bypass
+local function CreateHitbox(player)
+    if HitboxExtender.Hitboxes[player] then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    -- Проверяем, нужно ли показывать этого игрока
+    if HitboxExtender.ShowOnlyEnemies and player.Team == LocalPlayer.Team then
+        return
+    end
+    
+    -- Выбираем метод обхода в зависимости от настроек
+    if HitboxExtender.UseAntiCheatBypass then
+        if HitboxExtender.BypassMethod == "Network" then
+            NetworkBypass(player)
+        elseif HitboxExtender.BypassMethod == "Silent" then
+            SilentBypass(player)
+        elseif HitboxExtender.BypassMethod == "Hybrid" then
+            HybridBypass(player)
+        else
+            CollisionBypass(player)
+        end
+    else
+        -- Стандартный метод без обхода
+        local hitbox = Instance.new("Part")
+        hitbox.Name = "HitboxExtender"
+        hitbox.Size = HitboxExtender.Size
+        hitbox.Transparency = HitboxExtender.Transparency
+        hitbox.CanCollide = false
+        hitbox.Anchored = false
+        hitbox.Material = Enum.Material.ForceField
+        
+        -- Определяем цвет в зависимости от команды
+        if HitboxExtender.UseTeamColor and player.Team == LocalPlayer.Team then
+            hitbox.BrickColor = BrickColor.new(HitboxExtender.TeamColor)
+        else
+            hitbox.BrickColor = BrickColor.new(HitboxExtender.Color)
+        end
+        
+        -- Создаем Weld для прикрепления к персонажу
+        local weld = Instance.new("Weld")
+        weld.Part0 = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+        weld.Part1 = hitbox
+        weld.C0 = CFrame.new()
+        
+        hitbox.Parent = character
+        weld.Parent = hitbox
+        
+        HitboxExtender.Hitboxes[player] = {
+            Part = hitbox,
+            Weld = weld,
+            Player = player,
+            Type = "Standard"
+        }
+    end
+end
+
+local function RemoveHitbox(player)
+    if HitboxExtender.Hitboxes[player] then
+        -- Восстанавливаем оригинальные размеры если использовался сетевой метод
+        if HitboxExtender.OriginalSizes[player] then
+            local character = player.Character
+            if character then
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                local head = character:FindFirstChild("Head")
+                
+                if humanoidRootPart then
+                    humanoidRootPart.Size = HitboxExtender.OriginalSizes[player].HumanoidRootPart
+                end
+                if head then
+                    head.Size = HitboxExtender.OriginalSizes[player].Head
+                end
+            end
+            HitboxExtender.OriginalSizes[player] = nil
+        end
+        
+        -- Удаляем созданные части
+        if HitboxExtender.Hitboxes[player].Part then
+            HitboxExtender.Hitboxes[player].Part:Destroy()
+        end
+        HitboxExtender.Hitboxes[player] = nil
+    end
+end
+
+local function UpdateHitbox(player)
+    if not HitboxExtender.Hitboxes[player] then return end
+    
+    local character = player.Character
+    if not character then
+        RemoveHitbox(player)
+        return
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        RemoveHitbox(player)
+        return
+    end
+    
+    -- Для сетевого метода обновляем размеры
+    if HitboxExtender.BypassMethod == "Network" and HitboxExtender.UseAntiCheatBypass then
+        NetworkBypass(player)
+    end
+    
+    local hitbox = HitboxExtender.Hitboxes[player].Part
+    if hitbox and hitbox:IsDescendantOf(workspace) then
+        -- Обновляем только для видимых хитбоксов
+        if HitboxExtender.Hitboxes[player].Type ~= "Silent" then
+            hitbox.Size = HitboxExtender.Size
+            hitbox.Transparency = HitboxExtender.Transparency
+            
+            -- Обновляем цвет
+            if HitboxExtender.UseTeamColor and player.Team == LocalPlayer.Team then
+                hitbox.BrickColor = BrickColor.new(HitboxExtender.TeamColor)
+            else
+                hitbox.BrickColor = BrickColor.new(HitboxExtender.Color)
+            end
+        end
+    end
+end
+
+local function UpdateAllHitboxes()
+    if not HitboxExtender.Enabled then return end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        if HitboxExtender.ShowOnlyEnemies and player.Team == LocalPlayer.Team then
+            RemoveHitbox(player)
+            continue
+        end
+        
+        local character = player.Character
+        if character then
+            if not HitboxExtender.Hitboxes[player] then
+                CreateHitbox(player)
+            else
+                UpdateHitbox(player)
+            end
+        else
+            RemoveHitbox(player)
+        end
+    end
+end
+
+-- Функция для увеличения урона (регал урон) с обходом античита
+local function SetupDamageBoost()
+    if not HitboxExtender.Enabled then return end
+    
+    -- Метод 1: Перехват сетевых событий
+    local function interceptNetwork()
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        
+        setreadonly(mt, false)
+        
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            
+            -- Перехватываем вызовы связанные с уроном
+            if method == "FireServer" then
+                if tostring(self):find("Damage") or tostring(self):find("Hit") then
+                    -- Увеличиваем урон в аргументах если возможно
+                    for i, v in pairs(args) do
+                        if type(v) == "number" and v > 0 and v < 100 then
+                            args[i] = v * 2 -- Удваиваем урон
+                        end
+                    end
+                end
+            end
+            
+            return oldNamecall(self, unpack(args))
+        end)
+        
+        setreadonly(mt, true)
+    end
+    
+    -- Метод 2: Модификация инструментов
+    local function modifyToolDamage(tool)
+        if tool:IsA("Tool") then
+            -- Создаем или модифицируем значение урона
+            if not tool:FindFirstChild("Damage") then
+                local damage = Instance.new("NumberValue")
+                damage.Name = "Damage"
+                damage.Value = 50
+                damage.Parent = tool
+            else
+                tool.Damage.Value = tool.Damage.Value * 2
+            end
+            
+            -- Модифицируем скрипты урона
+            for _, script in pairs(tool:GetDescendants()) do
+                if script:IsA("Script") or script:IsA("LocalScript") then
+                    local source = script.Source
+                    if source and source:find("damage") or source:find("Damage") then
+                        -- Заменяем значения урона в скриптах
+                        local newSource = source:gsub("damage = (%d+)", "damage = %1 * 2")
+                        newSource = newSource:gsub("Damage = (%d+)", "Damage = %1 * 2")
+                        pcall(function()
+                            script.Source = newSource
+                        end)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Пытаемся использовать сетевой перехват
+    pcall(interceptNetwork)
+    
+    -- Применяем к существующим инструментам
+    if LocalPlayer.Backpack then
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            pcall(function() modifyToolDamage(tool) end)
+        end
+    end
+    
+    if LocalPlayer.Character then
+        for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                pcall(function() modifyToolDamage(tool) end)
+            end
+        end
+    end
+    
+    -- Отслеживаем новые инструменты
+    if LocalPlayer.Backpack then
+        LocalPlayer.Backpack.ChildAdded:Connect(function(tool)
+            wait(0.5) -- Ждем загрузки
+            pcall(function() modifyToolDamage(tool) end)
+        end)
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        character.ChildAdded:Connect(function(tool)
+            if tool:IsA("Tool") then
+                wait(0.5)
+                pcall(function() modifyToolDamage(tool) end)
+            end
+        end)
+    end)
+end
+
+-- Функция для проверки и обхода античита
+local function CheckAntiCheat()
+    -- Проверяем наличие известных античитов
+    local antiCheats = {
+        "AntiCheat",
+        "AC",
+        "VAC", 
+        "Watchdog",
+        "Security",
+        "Ban"
+    }
+    
+    for _, name in pairs(antiCheats) do
+        if game:GetService("Workspace"):FindFirstChild(name) or
+           game:GetService("Players"):FindFirstChild(name) or
+           game:GetService("Lighting"):FindFirstChild(name) then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Автоматический выбор метода обхода на основе обнаружения античита
+local function AutoSelectBypassMethod()
+    if CheckAntiCheat() then
+        -- Если обнаружен античит, используем тихий метод
+        HitboxExtender.BypassMethod = "Silent"
+        Library:Notify("Anti-Cheat detected! Using Silent method", 5)
+    else
+        -- Иначе используем гибридный метод для баланса
+        HitboxExtender.BypassMethod = "Hybrid"
+        Library:Notify("Using Hybrid bypass method", 3)
+    end
+end
+
+-- Доступные звуки
+local AvailableSounds = {
+    Beep = "rbxassetid://1593372465",
+    Click = "rbxassetid://1351070454",
+    Punch = "rbxassetid://1318289835",
+    Sword = "rbxassetid://12222216",
+    Gun = "rbxassetid://134012323"
+}
+
+-- FOV Drawing Objects
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = Aimbot.UseFOVCircle and Aimbot.FOVType == "Circle"
+FOVCircle.Radius = Aimbot.FOV
+FOVCircle.Color = Aimbot.FOVColor
+FOVCircle.Thickness = 1
+FOVCircle.Filled = false
+FOVCircle.Position = Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2)
+
+-- Таблица для линий многоугольника
+local FOVPolygonLines = {}
+local function CreateFOVPolygon()
+    -- Удаляем старые линии
+    for _, line in pairs(FOVPolygonLines) do
+        if line then
+            line:Remove()
+        end
+    end
+    FOVPolygonLines = {}
+    
+    -- Создаем новые линии для многоугольника
+    for i = 1, Aimbot.FOVSides do
+        local line = Drawing.new("Line")
+        line.Visible = Aimbot.UseFOVCircle and Aimbot.FOVType == "Polygon"
+        line.Color = Aimbot.FOVColor
+        line.Thickness = 1
+        FOVPolygonLines[i] = line
+    end
+end
+
+-- Инициализируем многоугольник
+CreateFOVPolygon()
+
+-- Функция обновления FOV
+local function UpdateFOV()
+    local center = Vector2.new(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2)
+    
+    if Aimbot.FOVType == "Circle" then
+        FOVCircle.Visible = Aimbot.UseFOVCircle and Aimbot.Enabled
+        FOVCircle.Radius = Aimbot.FOV
+        FOVCircle.Position = center
+        FOVCircle.Color = Aimbot.FOVColor
+        
+        -- Скрываем многоугольник
+        for _, line in pairs(FOVPolygonLines) do
+            if line then
+                line.Visible = false
+            end
+        end
+    else
+        if FOVCircle then
+            FOVCircle.Visible = false
+        end
+        
+        -- Обновляем многоугольник
+        local radius = Aimbot.FOV
+        local angleStep = (2 * math.pi) / Aimbot.FOVSides
+        
+        for i = 1, Aimbot.FOVSides do
+            local line = FOVPolygonLines[i]
+            if line then
+                line.Visible = Aimbot.UseFOVCircle and Aimbot.Enabled
+                line.Color = Aimbot.FOVColor
+                
+                -- Вычисляем точки для многоугольника
+                local angle1 = (i - 1) * angleStep
+                local angle2 = i * angleStep
+                
+                local x1 = center.X + radius * math.cos(angle1)
+                local y1 = center.Y + radius * math.sin(angle1)
+                local x2 = center.X + radius * math.cos(angle2)
+                local y2 = center.Y + radius * math.sin(angle2)
+                
+                line.From = Vector2.new(x1, y1)
+                line.To = Vector2.new(x2, y2)
+            end
+        end
+    end
+end
+
+-- Таблицы для ESP
+local highlights = {}
+local boxes = {}
+local tracers = {}
+local nameLabels = {}
+local distanceLabels = {}
+local visibilityLabels = {}
+
+-- Функция проверки видимости для ESP
+function isPlayerVisible(character)
+    if not character then return false end
+    if not LocalPlayer.Character then return false end
+    
+    local localHead = LocalPlayer.Character:FindFirstChild("Head")
+    local targetHead = character:FindFirstChild("Head")
+    
+    if not localHead or not targetHead then return false end
+    
+    local camera = Workspace.CurrentCamera
+    local origin = camera.CFrame.Position
+    local target = targetHead.Position
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, character}
+    raycastParams.IgnoreWater = true
+    
+    local raycastResult = Workspace:Raycast(origin, target - origin, raycastParams)
+    
+    if not raycastResult then
+        return true
+    end
+    
+    if raycastResult.Instance:IsDescendantOf(character) then
+        return true
+    end
+    
+    return false
+end
+
+-- Функция проверки видимости для Aimbot
+local function IsTargetVisible(targetCharacter)
+    if not targetCharacter then return false end
+    if not LocalPlayer.Character then return false end
+    
+    local aimPart = targetCharacter:FindFirstChild(Aimbot.AimPart)
+    if not aimPart then
+        aimPart = targetCharacter:FindFirstChild("Head") or targetCharacter:FindFirstChild("HumanoidRootPart")
+        if not aimPart then return false end
+    end
+    
+    local camera = Workspace.CurrentCamera
+    local origin = camera.CFrame.Position
+    local targetPosition = aimPart.Position
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, camera}
+    raycastParams.IgnoreWater = true
+    
+    local direction = (targetPosition - origin)
+    local raycastResult = Workspace:Raycast(origin, direction.Unit * math.min(direction.Magnitude, 1000), raycastParams)
+    
+    if raycastResult then
+        local hitCharacter = raycastResult.Instance:FindFirstAncestorOfClass("Model")
+        return hitCharacter and hitCharacter == targetCharacter
+    end
+    
+    return true
+end
+
+-- Hitsound Functions
+local function GetSoundId()
+    if Hitsound.SoundType == "Custom" and Hitsound.CustomSoundId ~= "" then
+        return Hitsound.CustomSoundId
+    else
+        return AvailableSounds[Hitsound.SoundType] or AvailableSounds.Beep
+    end
+end
+
+local function PlayHitsound()
+    if not Hitsound.Enabled then return end
+    
+    local currentTime = tick()
+    if currentTime - Hitsound.LastPlayTime < Hitsound.Cooldown then
+        return
+    end
+    
+    Hitsound.LastPlayTime = currentTime
+    
+    local soundId = GetSoundId()
+    
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Volume = Hitsound.Volume
+    sound.PlaybackSpeed = 1
+    sound.Parent = workspace
+    
+    local success = pcall(function()
+        sound:Play()
+    end)
+    
+    if not success then
+        local fallbackSound = Instance.new("Sound")
+        fallbackSound.SoundId = AvailableSounds.Beep
+        fallbackSound.Volume = Hitsound.Volume
+        fallbackSound.Parent = workspace
+        fallbackSound:Play()
+        game:GetService("Debris"):AddItem(fallbackSound, 3)
+    end
+    
+    game:GetService("Debris"):AddItem(sound, 3)
+end
+
+local function SetupHumanoidDetection()
+    if not Hitsound.Enabled then return end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        if player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            if humanoid then
+                local lastHealth = humanoid.Health
+                humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+                    if humanoid.Health < lastHealth and humanoid.Health > 0 then
+                        PlayHitsound()
+                    end
+                    lastHealth = humanoid.Health
+                end)
+            end
+        end
+        
+        player.CharacterAdded:Connect(function(character)
+            wait(1)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                local lastHealth = humanoid.Health
+                humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+                    if humanoid.Health < lastHealth and humanoid.Health > 0 then
+                        PlayHitsound()
+                    end
+                    lastHealth = humanoid.Health
+                end)
+            end
+        end)
+    end
+    
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            wait(1)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                local lastHealth = humanoid.Health
+                humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+                    if humanoid.Health < lastHealth and humanoid.Health > 0 then
+                        PlayHitsound()
+                    end
+                    lastHealth = humanoid.Health
+                end)
+            end
+        end)
+    end)
+end
+
+local function SetupToolDetection()
+    if not Hitsound.Enabled then return end
+    
+    local function setupTool(tool)
+        if tool:IsA("Tool") then
+            tool.Activated:Connect(function()
+                PlayHitsound()
+            end)
+        end
+    end
+    
+    if LocalPlayer.Backpack then
+        for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+            setupTool(tool)
+        end
+    end
+    
+    if LocalPlayer.Character then
+        for _, tool in pairs(LocalPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                setupTool(tool)
+            end
+        end
+    end
+    
+    if LocalPlayer.Backpack then
+        LocalPlayer.Backpack.ChildAdded:Connect(function(tool)
+            setupTool(tool)
+        end)
+    end
+    
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        character.ChildAdded:Connect(function(tool)
+            if tool:IsA("Tool") then
+                setupTool(tool)
+            end
+        end)
+    end)
+end
+
+local function InitializeHitsound()
+    if not Hitsound.Enabled then return end
+    SetupHumanoidDetection()
+    SetupToolDetection()
+end
+
+-- ESP Functions
+local function CreateDrawing(type, properties)
+    local drawing = Drawing.new(type)
+    for prop, value in pairs(properties) do
+        drawing[prop] = value
+    end
+    return drawing
+end
+
+local function GetCharacterBoundingBox(character)
+    if not character then return nil end
+    
+    local parts = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    
+    for _, partName in pairs(parts) do
+        local part = character:FindFirstChild(partName)
+        if part and part:IsA("BasePart") then
+            local position = part.Position
+            minX = math.min(minX, position.X)
+            minY = math.min(minY, position.Y)
+            minZ = math.min(minZ, position.Z)
+            maxX = math.max(maxX, position.X)
+            maxY = math.max(maxY, position.Y)
+            maxZ = math.max(maxZ, position.Z)
+        end
+    end
+    
+    if minX == math.huge then
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        local head = character:FindFirstChild("Head")
+        
+        if humanoidRootPart then
+            local position = humanoidRootPart.Position
+            minX = position.X - 2
+            minY = position.Y - 3
+            minZ = position.Z - 2
+            maxX = position.X + 2
+            maxY = position.Y + 1
+            maxZ = position.Z + 2
+        elseif head then
+            local position = head.Position
+            minX = position.X - 1
+            minY = position.Y - 1
+            minZ = position.Z - 1
+            maxX = position.X + 1
+            maxY = position.Y + 1
+            maxZ = position.Z + 1
+        else
+            return nil
+        end
+    end
+    
+    local expand = 0.5
+    minX = minX - expand
+    minY = minY - expand
+    minZ = minZ - expand
+    maxX = maxX + expand
+    maxY = maxY + expand
+    maxZ = maxZ + expand
+    
+    local corners = {
+        Vector3.new(minX, minY, minZ),
+        Vector3.new(maxX, minY, minZ),
+        Vector3.new(minX, maxY, minZ),
+        Vector3.new(maxX, maxY, minZ),
+        Vector3.new(minX, minY, maxZ),
+        Vector3.new(maxX, minY, maxZ),
+        Vector3.new(minX, maxY, maxZ),
+        Vector3.new(maxX, maxY, maxZ)
+    }
+    
+    return corners
+end
+
+local function UpdateBoxESP(player, character)
+    if not boxes[player] then
+        boxes[player] = {
+            TopLeft = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            TopRight = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            BottomLeft = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            BottomRight = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            LeftTop = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            LeftBottom = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            RightTop = CreateDrawing("Line", {Visible = false, Thickness = 2}),
+            RightBottom = CreateDrawing("Line", {Visible = false, Thickness = 2})
+        }
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then
+        for _, line in pairs(boxes[player]) do
+            if line then
+                line.Visible = false
+            end
+        end
+        return
+    end
+    
+    local corners = GetCharacterBoundingBox(character)
+    if not corners then
+        for _, line in pairs(boxes[player]) do
+            if line then
+                line.Visible = false
+            end
+        end
+        return
+    end
+    
+    local camera = Workspace.CurrentCamera
+    local screenCorners = {}
+    local anyOnScreen = false
+    
+    for i, corner in ipairs(corners) do
+        local screenPos, onScreen = camera:WorldToViewportPoint(corner)
+        screenCorners[i] = Vector2.new(screenPos.X, screenPos.Y)
+        if onScreen then anyOnScreen = true end
+    end
+    
+    if not anyOnScreen then
+        for _, line in pairs(boxes[player]) do
+            if line then
+                line.Visible = false
+            end
+        end
+        return
+    end
+    
+    local minX, minY = math.huge, math.huge
+    local maxX, maxY = -math.huge, -math.huge
+    
+    for _, screenPos in pairs(screenCorners) do
+        minX = math.min(minX, screenPos.X)
+        minY = math.min(minY, screenPos.Y)
+        maxX = math.max(maxX, screenPos.X)
+        maxY = math.max(maxY, screenPos.Y)
+    end
+    
+    if boxes[player].TopLeft then
+        boxes[player].TopLeft.From = Vector2.new(minX, minY)
+        boxes[player].TopLeft.To = Vector2.new(maxX, minY)
+    end
+    if boxes[player].TopRight then
+        boxes[player].TopRight.From = Vector2.new(maxX, minY)
+        boxes[player].TopRight.To = Vector2.new(maxX, maxY)
+    end
+    if boxes[player].BottomRight then
+        boxes[player].BottomRight.From = Vector2.new(maxX, maxY)
+        boxes[player].BottomRight.To = Vector2.new(minX, maxY)
+    end
+    if boxes[player].BottomLeft then
+        boxes[player].BottomLeft.From = Vector2.new(minX, maxY)
+        boxes[player].BottomLeft.To = Vector2.new(minX, minY)
+    end
+    
+    local cornerSize = math.min((maxX - minX) * 0.2, (maxY - minY) * 0.2)
+    
+    if boxes[player].LeftTop then
+        boxes[player].LeftTop.From = Vector2.new(minX, minY)
+        boxes[player].LeftTop.To = Vector2.new(minX + cornerSize, minY)
+    end
+    if boxes[player].LeftBottom then
+        boxes[player].LeftBottom.From = Vector2.new(minX, maxY)
+        boxes[player].LeftBottom.To = Vector2.new(minX + cornerSize, maxY)
+    end
+    if boxes[player].RightTop then
+        boxes[player].RightTop.From = Vector2.new(maxX, minY)
+        boxes[player].RightTop.To = Vector2.new(maxX - cornerSize, minY)
+    end
+    if boxes[player].RightBottom then
+        boxes[player].RightBottom.From = Vector2.new(maxX, maxY)
+        boxes[player].RightBottom.To = Vector2.new(maxX - cornerSize, maxY)
+    end
+    
+    local isVisible = isPlayerVisible(character)
+    local color = ESP_SETTINGS.TeamCheck and player.Team == LocalPlayer.Team and ESP_SETTINGS.TeamColor or (isVisible and ESP_SETTINGS.VisibleColor or ESP_SETTINGS.NotVisibleColor)
+    
+    for _, line in pairs(boxes[player]) do
+        if line then
+            line.Visible = ESP_SETTINGS.Enabled and ESP_SETTINGS.ShowBox
+            line.Color = color
+        end
+    end
+end
+
+local function UpdateTracerESP(player, character)
+    if not tracers[player] then
+        tracers[player] = CreateDrawing("Line", {Visible = false, Thickness = 1})
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not humanoidRootPart or humanoid.Health <= 0 then
+        if tracers[player] then
+            tracers[player].Visible = false
+        end
+        return
+    end
+    
+    local camera = Workspace.CurrentCamera
+    local rootPos, rootOnScreen = camera:WorldToViewportPoint(humanoidRootPart.Position)
+    
+    if not rootOnScreen then
+        if tracers[player] then
+            tracers[player].Visible = false
+        end
+        return
+    end
+    
+    local startPos
+    if ESP_SETTINGS.TracerOrigin == "Bottom" then
+        startPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+    elseif ESP_SETTINGS.TracerOrigin == "Top" then
+        startPos = Vector2.new(camera.ViewportSize.X / 2, 0)
+    else
+        startPos = UserInputService:GetMouseLocation()
+    end
+    
+    if tracers[player] then
+        tracers[player].From = startPos
+        tracers[player].To = Vector2.new(rootPos.X, rootPos.Y)
+        tracers[player].Visible = ESP_SETTINGS.Enabled and ESP_SETTINGS.ShowTracer
+        
+        local isVisible = isPlayerVisible(character)
+        local color = ESP_SETTINGS.TeamCheck and player.Team == LocalPlayer.Team and ESP_SETTINGS.TeamColor or (isVisible and ESP_SETTINGS.VisibleColor or ESP_SETTINGS.NotVisibleColor)
+        tracers[player].Color = color
+    end
+end
+
+local function UpdateTextESP(player, character)
+    if not nameLabels[player] then
+        nameLabels[player] = CreateDrawing("Text", {Visible = false, Size = 13, Center = true, Outline = true, Font = 2})
+        distanceLabels[player] = CreateDrawing("Text", {Visible = false, Size = 11, Center = true, Outline = true, Font = 2})
+        visibilityLabels[player] = CreateDrawing("Text", {Visible = false, Size = 11, Center = true, Outline = true, Font = 2})
+    end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    local head = character:FindFirstChild("Head")
+    
+    if not humanoid or not head or humanoid.Health <= 0 then
+        if nameLabels[player] then nameLabels[player].Visible = false end
+        if distanceLabels[player] then distanceLabels[player].Visible = false end
+        if visibilityLabels[player] then visibilityLabels[player].Visible = false end
+        return
+    end
+    
+    local camera = Workspace.CurrentCamera
+    local headPos, headOnScreen = camera:WorldToViewportPoint(head.Position)
+    
+    if not headOnScreen then
+        if nameLabels[player] then nameLabels[player].Visible = false end
+        if distanceLabels[player] then distanceLabels[player].Visible = false end
+        if visibilityLabels[player] then visibilityLabels[player].Visible = false end
+        return
+    end
+    
+    local distance = 0
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        distance = (LocalPlayer.Character.HumanoidRootPart.Position - head.Position).Magnitude
+    end
+    
+    if nameLabels[player] then
+        nameLabels[player].Position = Vector2.new(headPos.X, headPos.Y - 50)
+        nameLabels[player].Text = player.Name
+        nameLabels[player].Visible = ESP_SETTINGS.Enabled and ESP_SETTINGS.ShowName
+    end
+    
+    if distanceLabels[player] then
+        distanceLabels[player].Position = Vector2.new(headPos.X, headPos.Y - 35)
+        distanceLabels[player].Text = math.floor(distance) .. " studs"
+        distanceLabels[player].Visible = ESP_SETTINGS.Enabled and ESP_SETTINGS.ShowDistance
+    end
+    
+    local isVisible = isPlayerVisible(character)
+    if visibilityLabels[player] then
+        visibilityLabels[player].Position = Vector2.new(headPos.X, headPos.Y - 20)
+        visibilityLabels[player].Text = isVisible and "VISIBLE" or "HIDDEN"
+        visibilityLabels[player].Visible = ESP_SETTINGS.Enabled and ESP_SETTINGS.ShowVisibility
+    end
+    
+    local color = ESP_SETTINGS.TeamCheck and player.Team == LocalPlayer.Team and ESP_SETTINGS.TeamColor or (isVisible and ESP_SETTINGS.VisibleColor or ESP_SETTINGS.NotVisibleColor)
+    
+    if nameLabels[player] then nameLabels[player].Color = color end
+    if distanceLabels[player] then distanceLabels[player].Color = color end
+    if visibilityLabels[player] then visibilityLabels[player].Color = color end
+end
+
+-- Aimbot Functions
+local function GetClosestPlayer()
+    local closestPlayer = nil
+    local shortestDistance = Aimbot.FOV
+    local Camera = Workspace.CurrentCamera
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        local character = player.Character
+        if not character then continue end
+        
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then continue end
+        
+        if Aimbot.TeamCheck and player.Team == LocalPlayer.Team then continue end
+        
+        local aimPart = character:FindFirstChild(Aimbot.AimPart)
+        if not aimPart then
+            aimPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+            if not aimPart then continue end
+        end
+        
+        if Aimbot.VisibleCheck and not IsTargetVisible(character) then continue end
+        
+        local screenPoint, onScreen = Camera:WorldToViewportPoint(aimPart.Position)
+        
+        if onScreen then
+            local mousePos = UserInputService:GetMouseLocation()
+            local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePos).Magnitude
+            
+            -- Проверка внутри FOV в зависимости от типа
+            local isInsideFOV = false
+            if Aimbot.FOVType == "Circle" then
+                isInsideFOV = distance <= Aimbot.FOV
+            else
+                -- Для многоугольника используем ту же проверку (можно улучшить)
+                isInsideFOV = distance <= Aimbot.FOV
+            end
+            
+            if isInsideFOV and distance <= shortestDistance then
+                shortestDistance = distance
+                closestPlayer = player
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+local function AimAt(target)
+    if not target or not target.Character then return end
+    
+    local aimPart = target.Character:FindFirstChild(Aimbot.AimPart)
+    if not aimPart then
+        aimPart = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+        if not aimPart then return end
+    end
+    
+    local camera = Workspace.CurrentCamera
+    local targetPosition = aimPart.Position
+    
+    local mouse = UserInputService:GetMouseLocation()
+    local screenPoint, onScreen = camera:WorldToViewportPoint(targetPosition)
+    
+    if onScreen then
+        local delta = Vector2.new(screenPoint.X, screenPoint.Y) - mouse
+        local smoothedDelta = delta * Aimbot.Smoothness
+        mousemoverel(smoothedDelta.X, smoothedDelta.Y)
+    end
+end
+
+-- ESP Management
+function createHighlight(player)
+    if highlights[player] then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = player.Name .. "_ESP"
+    highlight.Adornee = character
+    highlight.Parent = game:GetService("CoreGui")
+    
+    if ESP_SETTINGS.TeamCheck and player.Team == LocalPlayer.Team then
+        highlight.FillColor = ESP_SETTINGS.TeamColor
+        highlight.OutlineColor = Color3.fromRGB(0, 100, 200)
+    else
+        local isVisible = isPlayerVisible(character)
+        highlight.FillColor = isVisible and ESP_SETTINGS.VisibleColor or ESP_SETTINGS.NotVisibleColor
+        highlight.OutlineColor = isVisible and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 0, 0)
+    end
+    
+    highlight.FillTransparency = 0.3
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    
+    highlights[player] = {Highlight = highlight, Character = character, Player = player}
+end
+
+function removeESP(player)
+    if highlights[player] then
+        if highlights[player].Highlight then
+            highlights[player].Highlight:Destroy()
+        end
+        highlights[player] = nil
+    end
+    
+    if boxes[player] then
+        for _, line in pairs(boxes[player]) do
+            if line then
+                line:Remove()
+            end
+        end
+        boxes[player] = nil
+    end
+    
+    if tracers[player] then
+        if tracers[player] then
+            tracers[player]:Remove()
+        end
+        tracers[player] = nil
+    end
+    
+    if nameLabels[player] then 
+        if nameLabels[player] then
+            nameLabels[player]:Remove() 
+        end
+        nameLabels[player] = nil 
+    end
+    if distanceLabels[player] then 
+        if distanceLabels[player] then
+            distanceLabels[player]:Remove() 
+        end
+        distanceLabels[player] = nil 
+    end
+    if visibilityLabels[player] then 
+        if visibilityLabels[player] then
+            visibilityLabels[player]:Remove() 
+        end
+        visibilityLabels[player] = nil 
+    end
+end
+
+function updateAllESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        local character = player.Character
+        if not character then
+            removeESP(player)
+            continue
+        end
+        
+        local humanoid = character:FindFirstChild("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then
+            removeESP(player)
+            continue
+        end
+        
+        if ESP_SETTINGS.Enabled then
+            createHighlight(player)
+            UpdateBoxESP(player, character)
+            UpdateTracerESP(player, character)
+            UpdateTextESP(player, character)
+        else
+            if highlights[player] and highlights[player].Highlight then 
+                highlights[player].Highlight.Enabled = false 
+            end
+            if boxes[player] then 
+                for _, line in pairs(boxes[player]) do 
+                    if line then
+                        line.Visible = false 
+                    end
+                end 
+            end
+            if tracers[player] then 
+                if tracers[player] then
+                    tracers[player].Visible = false 
+                end
+            end
+            if nameLabels[player] then 
+                if nameLabels[player] then
+                    nameLabels[player].Visible = false 
+                end
+            end
+            if distanceLabels[player] then 
+                if distanceLabels[player] then
+                    distanceLabels[player].Visible = false 
+                end
+            end
+            if visibilityLabels[player] then 
+                if visibilityLabels[player] then
+                    visibilityLabels[player].Visible = false 
+                end
+            end
+        end
+    end
+end
+
+-- Player Handlers
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        wait(1)
+        updateAllESP()
+    end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    removeESP(player)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        if player.Character then createHighlight(player) end
+        player.CharacterAdded:Connect(function(character)
+            wait(1)
+            updateAllESP()
+        end)
+    end
+end
+
+-- Management Functions
+local ESP = {}
+function ESP:Toggle() ESP_SETTINGS.Enabled = not ESP_SETTINGS.Enabled updateAllESP() end
+function ESP:SetMaxDistance(distance) ESP_SETTINGS.MaxDistance = distance end
+function ESP:ToggleTeamCheck() ESP_SETTINGS.TeamCheck = not ESP_SETTINGS.TeamCheck updateAllESP() end
+function ESP:ToggleVisibilityCheck() ESP_SETTINGS.ShowVisibility = not ESP_SETTINGS.ShowVisibility updateAllESP() end
+function ESP:ToggleName() ESP_SETTINGS.ShowName = not ESP_SETTINGS.ShowName updateAllESP() end
+function ESP:ToggleDistance() ESP_SETTINGS.ShowDistance = not ESP_SETTINGS.ShowDistance updateAllESP() end
+function ESP:ToggleBox() ESP_SETTINGS.ShowBox = not ESP_SETTINGS.ShowBox updateAllESP() end
+function ESP:ToggleTracer() ESP_SETTINGS.ShowTracer = not ESP_SETTINGS.ShowTracer updateAllESP() end
+function ESP:SetTracerOrigin(origin) ESP_SETTINGS.TracerOrigin = origin updateAllESP() end
+
+local HitsoundManager = {}
+function HitsoundManager:Toggle() 
+    Hitsound.Enabled = not Hitsound.Enabled 
+    if Hitsound.Enabled then InitializeHitsound() end
+end
+function HitsoundManager:SetVolume(volume) Hitsound.Volume = volume / 100 end
+function HitsoundManager:SetSoundType(soundType) Hitsound.SoundType = soundType end
+function HitsoundManager:SetCustomSound(soundId) 
+    if soundId and soundId ~= "" then 
+        Hitsound.CustomSoundId = soundId 
+        Hitsound.SoundType = "Custom"
+    end
+end
+function HitsoundManager:TestSound() PlayHitsound() end
+
+local NightModeManager = {}
+function NightModeManager:Toggle() ToggleNightMode() end
+function NightModeManager:SetBrightness(value) NightMode.Brightness = value / 100 end
+function NightModeManager:SetAmbient(color) NightMode.Ambient = color end
+function NightModeManager:SetFogColor(color) NightMode.FogColor = color end
+function NightModeManager:SetFogDistance(startDist, endDist) 
+    NightMode.FogStart = startDist
+    NightMode.FogEnd = endDist
+end
+function NightModeManager:ToggleFog() 
+    NightMode.FogEnabled = not NightMode.FogEnabled 
+    ApplyNightMode()
+end
+
+local HitboxManager = {}
+function HitboxManager:Toggle() 
+    HitboxExtender.Enabled = not HitboxExtender.Enabled 
+    if HitboxExtender.Enabled then
+        -- Автоматически выбираем метод обхода при включении
+        AutoSelectBypassMethod()
+    else
+        -- Удаляем все хитбоксы при выключении
+        for player, _ in pairs(HitboxExtender.Hitboxes) do
+            RemoveHitbox(player)
+        end
+    end
+end
+function HitboxManager:SetSize(x, y, z) 
+    HitboxExtender.Size = Vector3.new(x, y, z) 
+end
+function HitboxManager:SetTransparency(value) 
+    HitboxExtender.Transparency = value / 100 
+end
+function HitboxManager:SetColor(color) 
+    HitboxExtender.Color = color 
+end
+function HitboxManager:SetTeamColor(color) 
+    HitboxExtender.TeamColor = color 
+end
+function HitboxManager:ToggleTeamColor() 
+    HitboxExtender.UseTeamColor = not HitboxExtender.UseTeamColor 
+end
+function HitboxManager:ToggleShowOnlyEnemies() 
+    HitboxExtender.ShowOnlyEnemies = not HitboxExtender.ShowOnlyEnemies 
+end
+function HitboxManager:ToggleAntiCheatBypass()
+    HitboxExtender.UseAntiCheatBypass = not HitboxExtender.UseAntiCheatBypass
+    if HitboxExtender.UseAntiCheatBypass then
+        AutoSelectBypassMethod()
+    end
+end
+function HitboxManager:SetBypassMethod(method)
+    HitboxExtender.BypassMethod = method
+    Library:Notify("Bypass method: " .. method, 3)
+end
+function HitboxManager:EnableDamageBoost() 
+    SetupDamageBoost()
+    Library:Notify("Damage Boost Activated", 3)
+end
+function HitboxManager:DetectAntiCheat()
+    if CheckAntiCheat() then
+        Library:Notify("Anti-Cheat detected!", 5)
+    else
+        Library:Notify("No Anti-Cheat detected", 3)
+    end
+end
+
+-- UI Elements (Organized by Tabs)
+
+-- Combat Tab
+local AimbotGroup = Tabs.Combat:AddLeftGroupbox("Aimbot")
+
+AimbotGroup:AddToggle("AimbotEnabled", {
+    Text = "Aimbot Enabled", Default = false,
+    Callback = function(Value) Aimbot.Enabled = Value end,
+})
+
+AimbotGroup:AddToggle("AimbotTeamCheck", {
+    Text = "Team Check", Default = true,
+    Callback = function(Value) Aimbot.TeamCheck = Value end,
+})
+
+AimbotGroup:AddToggle("AimbotVisibleCheck", {
+    Text = "Visible Check", Default = true,
+    Callback = function(Value) Aimbot.VisibleCheck = Value end,
+})
+
+AimbotGroup:AddToggle("AimbotUseTrigger", {
+    Text = "Use Trigger Key", Default = false,
+    Callback = function(Value) Aimbot.UseTrigger = Value end,
+})
+
+AimbotGroup:AddDropdown("AimbotAimPart", {
+    Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 1,
+    Text = "Aim Part",
+    Callback = function(Value) Aimbot.AimPart = Value end,
+})
+
+AimbotGroup:AddDropdown("FOVType", {
+    Values = {"Circle", "Polygon"}, Default = 1,
+    Text = "FOV Type",
+    Callback = function(Value) 
+        Aimbot.FOVType = Value 
+        CreateFOVPolygon() -- Пересоздаем многоугольник при изменении типа
+    end,
+})
+
+AimbotGroup:AddSlider("FOVSides", {
+    Text = "Polygon Sides", Default = 6, Min = 3, Max = 12, Rounding = 0, Suffix = " sides",
+    Callback = function(Value) 
+        Aimbot.FOVSides = Value 
+        CreateFOVPolygon() -- Пересоздаем многоугольник при изменении количества сторон
+    end,
+})
+
+AimbotGroup:AddLabel("FOV Color"):AddColorPicker("FOVColorPicker", {
+    Default = Aimbot.FOVColor, Title = "FOV Color",
+    Callback = function(Value) Aimbot.FOVColor = Value end,
+})
+
+AimbotGroup:AddToggle("AimbotFOVCircle", {
+    Text = "Show FOV", Default = true,
+    Callback = function(Value) Aimbot.UseFOVCircle = Value end,
+})
+
+AimbotGroup:AddSlider("AimbotFOV", {
+    Text = "FOV Size", Default = 50, Min = 10, Max = 200, Rounding = 0, Suffix = "°",
+    Callback = function(Value) Aimbot.FOV = Value end,
+})
+
+AimbotGroup:AddSlider("AimbotSmoothness", {
+    Text = "Smoothness", Default = 10, Min = 1, Max = 100, Rounding = 0, Suffix = "%",
+    Callback = function(Value) Aimbot.Smoothness = Value / 100 end,
+})
+
+local HitsoundGroup = Tabs.Combat:AddRightGroupbox("Hitsound")
+
+HitsoundGroup:AddToggle("HitsoundEnabled", {
+    Text = "Hitsound", Default = false,
+    Callback = function(Value) HitsoundManager:Toggle() end,
+})
+
+HitsoundGroup:AddDropdown("HitsoundType", {
+    Values = {"Beep", "Click", "Punch", "Sword", "Gun", "Custom"}, Default = 1,
+    Text = "Sound Type",
+    Callback = function(Value) HitsoundManager:SetSoundType(Value) end,
+})
+
+HitsoundGroup:AddInput("CustomSoundId", {
+    Default = "", Numeric = false, Finished = true,
+    Text = "Custom Sound ID", Placeholder = "rbxassetid://...",
+    Callback = function(Value) if Value ~= "" then HitsoundManager:SetCustomSound(Value) end end,
+})
+
+HitsoundGroup:AddSlider("HitsoundVolume", {
+    Text = "Hitsound Volume", Default = 50, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
+    Callback = function(Value) HitsoundManager:SetVolume(Value) end,
+})
+
+HitsoundGroup:AddButton({
+    Text = "Test Hitsound",
+    Func = function() HitsoundManager:TestSound() end,
+    DoubleClick = false, Tooltip = "Test the current hitsound",
+})
+
+HitsoundGroup:AddDivider()
+HitsoundGroup:AddLabel("Hitsound plays when you hit enemies")
+
+-- Visuals Tab
+local ESPMainGroup = Tabs.Visuals:AddLeftGroupbox("ESP Main")
+
+ESPMainGroup:AddToggle("ESPEnabled", {
+    Text = "ESP Enabled", Default = false,
+    Callback = function(Value) ESP:Toggle() end,
+})
+
+ESPMainGroup:AddToggle("ESPTeamCheck", {
+    Text = "Team Check", Default = false,
+    Callback = function(Value) ESP:ToggleTeamCheck() end,
+})
+
+ESPMainGroup:AddToggle("ESPShowBox", {
+    Text = "Box ESP", Default = true,
+    Callback = function(Value) ESP:ToggleBox() end,
+})
+
+ESPMainGroup:AddToggle("ESPShowTracer", {
+    Text = "Tracer", Default = true,
+    Callback = function(Value) ESP:ToggleTracer() end,
+})
+
+ESPMainGroup:AddToggle("ESPShowNames", {
+    Text = "Show Names", Default = true,
+    Callback = function(Value) ESP:ToggleName() end,
+})
+
+ESPMainGroup:AddToggle("ESPShowDistance", {
+    Text = "Show Distance", Default = true,
+    Callback = function(Value) ESP:ToggleDistance() end,
+})
+
+ESPMainGroup:AddToggle("ESPShowVisibility", {
+    Text = "Show Visibility", Default = true,
+    Callback = function(Value) ESP:ToggleVisibilityCheck() end,
+})
+
+local ESPConfigGroup = Tabs.Visuals:AddRightGroupbox("ESP Configuration")
+
+ESPConfigGroup:AddDropdown("TracerOrigin", {
+    Values = {"Bottom", "Top", "Mouse"}, Default = 1,
+    Text = "Tracer Origin",
+    Callback = function(Value) ESP:SetTracerOrigin(Value) end,
+})
+
+ESPConfigGroup:AddSlider("ESPMaxDistance", {
+    Text = "Max Distance", Default = 500, Min = 100, Max = 1000, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) ESP:SetMaxDistance(Value) end,
+})
+
+ESPConfigGroup:AddLabel("ESP Colors"):AddColorPicker("VisibleColor", {
+    Default = ESP_SETTINGS.VisibleColor, Title = "Visible Color",
+    Callback = function(Value) ESP_SETTINGS.VisibleColor = Value updateAllESP() end,
+})
+
+ESPConfigGroup:AddLabel(""):AddColorPicker("NotVisibleColor", {
+    Default = ESP_SETTINGS.NotVisibleColor, Title = "Not Visible Color",
+    Callback = function(Value) ESP_SETTINGS.NotVisibleColor = Value updateAllESP() end,
+})
+
+ESPConfigGroup:AddLabel(""):AddColorPicker("TeamColor", {
+    Default = ESP_SETTINGS.TeamColor, Title = "Team Color",
+    Callback = function(Value) ESP_SETTINGS.TeamColor = Value updateAllESP() end,
+})
+
+ESPConfigGroup:AddDivider()
+ESPConfigGroup:AddLabel("ESP Features:")
+ESPConfigGroup:AddLabel("- Box: Rectangle around players")
+ESPConfigGroup:AddLabel("- Tracer: Line to players") 
+ESPConfigGroup:AddLabel("- Names: Player names")
+ESPConfigGroup:AddLabel("- Distance: Distance in studs")
+ESPConfigGroup:AddLabel("- Visibility: VISIBLE/HIDDEN status")
+
+-- World Tab
+local NightModeGroup = Tabs.World:AddLeftGroupbox("Night Mode")
+
+NightModeGroup:AddToggle("NightModeEnabled", {
+    Text = "Night Mode", Default = false,
+    Callback = function(Value) NightModeManager:Toggle() end,
+})
+
+NightModeGroup:AddSlider("NightModeBrightness", {
+    Text = "Brightness", Default = 10, Min = 1, Max = 50, Rounding = 0, Suffix = "%",
+    Callback = function(Value) NightModeManager:SetBrightness(Value) end,
+})
+
+NightModeGroup:AddLabel("Ambient Color"):AddColorPicker("AmbientColor", {
+    Default = NightMode.Ambient, Title = "Ambient Color",
+    Callback = function(Value) NightModeManager:SetAmbient(Value) end,
+})
+
+NightModeGroup:AddLabel("Fog Color"):AddColorPicker("FogColor", {
+    Default = NightMode.FogColor, Title = "Fog Color",
+    Callback = function(Value) NightModeManager:SetFogColor(Value) end,
+})
+
+NightModeGroup:AddToggle("FogEnabled", {
+    Text = "Enable Fog", Default = true,
+    Callback = function(Value) NightModeManager:ToggleFog() end,
+})
+
+NightModeGroup:AddSlider("FogStart", {
+    Text = "Fog Start", Default = 0, Min = 0, Max = 500, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) NightModeManager:SetFogDistance(Value, NightMode.FogEnd) end,
+})
+
+NightModeGroup:AddSlider("FogEnd", {
+    Text = "Fog End", Default = 1000, Min = 100, Max = 2000, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) NightModeManager:SetFogDistance(NightMode.FogStart, Value) end,
+})
+
+NightModeGroup:AddDivider()
+NightModeGroup:AddLabel("Night Mode Features:")
+NightModeGroup:AddLabel("- Darkens the environment")
+NightModeGroup:AddLabel("- Blue-ish night ambiance")
+NightModeGroup:AddLabel("- Adjustable fog")
+NightModeGroup:AddLabel("- Better visibility in dark areas")
+
+-- HitBox Tab
+local HitboxMainGroup = Tabs.HitBox:AddLeftGroupbox("Hitbox Extender")
+
+HitboxMainGroup:AddToggle("HitboxEnabled", {
+    Text = "Hitbox Extender", Default = false,
+    Callback = function(Value) HitboxManager:Toggle() end,
+})
+
+HitboxMainGroup:AddSlider("HitboxSizeX", {
+    Text = "Hitbox Size X", Default = 5, Min = 1, Max = 20, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) HitboxManager:SetSize(Value, HitboxExtender.Size.Y, HitboxExtender.Size.Z) end,
+})
+
+HitboxMainGroup:AddSlider("HitboxSizeY", {
+    Text = "Hitbox Size Y", Default = 5, Min = 1, Max = 20, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) HitboxManager:SetSize(HitboxExtender.Size.X, Value, HitboxExtender.Size.Z) end,
+})
+
+HitboxMainGroup:AddSlider("HitboxSizeZ", {
+    Text = "Hitbox Size Z", Default = 5, Min = 1, Max = 20, Rounding = 0, Suffix = " studs",
+    Callback = function(Value) HitboxManager:SetSize(HitboxExtender.Size.X, HitboxExtender.Size.Y, Value) end,
+})
+
+HitboxMainGroup:AddSlider("HitboxTransparency", {
+    Text = "Hitbox Transparency", Default = 70, Min = 0, Max = 100, Rounding = 0, Suffix = "%",
+    Callback = function(Value) HitboxManager:SetTransparency(Value) end,
+})
+
+HitboxMainGroup:AddToggle("HitboxTeamColor", {
+    Text = "Use Team Color", Default = true,
+    Callback = function(Value) HitboxManager:ToggleTeamColor() end,
+})
+
+HitboxMainGroup:AddToggle("HitboxShowOnlyEnemies", {
+    Text = "Show Only Enemies", Default = true,
+    Callback = function(Value) HitboxManager:ToggleShowOnlyEnemies() end,
+})
+
+HitboxMainGroup:AddToggle("HitboxAntiCheatBypass", {
+    Text = "Anti-Cheat Bypass", Default = true,
+    Callback = function(Value) HitboxManager:ToggleAntiCheatBypass() end,
+})
+
+local HitboxConfigGroup = Tabs.HitBox:AddRightGroupbox("Anti-Cheat Bypass")
+
+HitboxConfigGroup:AddDropdown("BypassMethod", {
+    Values = {"Network", "Silent", "Hybrid", "Collision"}, Default = 3,
+    Text = "Bypass Method",
+    Callback = function(Value) HitboxManager:SetBypassMethod(Value) end,
+})
+
+HitboxConfigGroup:AddLabel("Enemy Hitbox Color"):AddColorPicker("HitboxEnemyColor", {
+    Default = HitboxExtender.Color, Title = "Enemy Color",
+    Callback = function(Value) HitboxManager:SetColor(Value) end,
+})
+
+HitboxConfigGroup:AddLabel("Team Hitbox Color"):AddColorPicker("HitboxTeamColor", {
+    Default = HitboxExtender.TeamColor, Title = "Team Color",
+    Callback = function(Value) HitboxManager:SetTeamColor(Value) end,
+})
+
+HitboxConfigGroup:AddButton({
+    Text = "Enable Damage Boost",
+    Func = function() HitboxManager:EnableDamageBoost() end,
+    DoubleClick = false, Tooltip = "Increases weapon damage with bypass",
+})
+
+HitboxConfigGroup:AddButton({
+    Text = "Detect Anti-Cheat",
+    Func = function() HitboxManager:DetectAntiCheat() end,
+    DoubleClick = false, Tooltip = "Check for anti-cheat systems",
+})
+
+HitboxConfigGroup:AddDivider()
+HitboxConfigGroup:AddLabel("Bypass Methods:")
+HitboxConfigGroup:AddLabel("- Network: Changes part sizes")
+HitboxConfigGroup:AddLabel("- Silent: Invisible hitboxes") 
+HitboxConfigGroup:AddLabel("- Hybrid: Combination of methods")
+HitboxConfigGroup:AddLabel("- Collision: Advanced collision boxes")
+
+-- Settings Tab
+local ConfigGroup = Tabs.Settings:AddLeftGroupbox("Configuration")
+
+ConfigGroup:AddToggle("KeybindMenuOpen", {
+    Default = Library.KeybindFrame.Visible,
+    Text = "Open Keybind Menu",
+    Callback = function(value) Library.KeybindFrame.Visible = value end,
+})
+
+ConfigGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { 
+    Default = "RightShift", NoUI = true, Text = "Menu keybind" 
+})
+
+ConfigGroup:AddButton("Unload", function()
+    if FOVCircle then FOVCircle:Remove() end
+    -- Удаляем линии многоугольника
+    for _, line in pairs(FOVPolygonLines) do
+        if line then
+            line:Remove()
+        end
+    end
+    for _, player in pairs(Players:GetPlayers()) do 
+        removeESP(player)
+        RemoveHitbox(player)
+    end
+    if hitsoundConnection then hitsoundConnection:Disconnect() end
+    if nightModeConnection then nightModeConnection:Disconnect() end
+    if hitboxConnection then hitboxConnection:Disconnect() end
+    -- Восстанавливаем оригинальные настройки освещения
+    RestoreOriginalLighting()
+    Library:Unload()
+end)
+
+ConfigGroup:AddDivider()
+ConfigGroup:AddLabel("Hotkeys:")
+ConfigGroup:AddLabel("RightShift - Toggle Aimbot")
+ConfigGroup:AddLabel("[ ] - Change FOV")
+ConfigGroup:AddLabel("+ - - Change Smoothness")
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- Main Loops
+local espUpdateConnection = RunService.RenderStepped:Connect(function()
+    updateAllESP()
+    UpdateFOV()
+end)
+
+local aimbotActive = false
+local aimbotUpdateConnection = RunService.RenderStepped:Connect(function()
+    if not Aimbot.Enabled then return end
+    if not LocalPlayer.Character then return end
+    
+    if Aimbot.UseTrigger then
+        aimbotActive = UserInputService:IsKeyDown(Aimbot.TriggerKey)
+    else
+        aimbotActive = true
+    end
+    
+    if aimbotActive then
+        local closestPlayer = GetClosestPlayer()
+        if closestPlayer then AimAt(closestPlayer) end
+    end
+end)
+
+local hitsoundConnection = RunService.Heartbeat:Connect(function()
+    if Hitsound.Enabled then
+        -- Hitsound detection happens in the setup functions
+    end
+end)
+
+-- Night Mode Loop
+local nightModeConnection = RunService.Heartbeat:Connect(function()
+    if NightMode.Enabled then
+        ApplyNightMode()
+    end
+end)
+
+-- Hitbox Extender Loop
+local hitboxConnection = RunService.Heartbeat:Connect(function()
+    UpdateAllHitboxes()
+end)
+
+-- Addons
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+ThemeManager:SetFolder("GostHub")
+SaveManager:SetFolder("GostHub/configs")
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+SaveManager:LoadAutoloadConfig()
+
+-- Final
+Library:Notify("GostHub v2.0 Loaded with Anti-Cheat Bypass!", 5)
+print("GostHub: Aimbot, ESP, Hitsound, Night Mode, Hitbox Extender - Ready!")
+print("Anti-Cheat Bypass: Network, Silent, Hybrid, Collision methods available")
+print("Auto-detection: Will select best bypass method")
+
+return {
+    ESP = ESP, 
+    Aimbot = Aimbot, 
+    Hitsound = HitsoundManager, 
+    NightMode = NightModeManager,
+    Hitbox = HitboxManager
+}
